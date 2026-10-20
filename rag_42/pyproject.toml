@@ -1,0 +1,24 @@
+[project]
+name = "rag42"
+version = "0.1.0"
+description = "RAG against the machine"
+requires-python = ">=3.10"
+dependencies = [
+    "pydantic>=2",
+    "fire",
+    "tqdm",
+]
+
+[dependency-groups]
+dev = [
+    "pytest",
+    "flake8",
+    "mypy",
+]
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+
+[tool.mypy]
+exclude = ["^data/", "^\\.venv/"]
+

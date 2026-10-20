@@ -6,14 +6,16 @@ La regla de oro: **una etapa terminada, un checklist cerrado**. No pases de arch
 
 ## Qué tiene cada archivo
 
-Todos siguen el mismo formato:
+La filosofía es la misma en todos: la teoría (`teory_openai/`) enseña *por qué*; aquí aprendes **dónde va cada pieza y por qué ahí** — no a copiar y pegar código. Los preliminares (`00a`/`00b`) son algo más libres; del `01` en adelante todos siguen este patrón:
 
-1. **Qué vas a construir** — la etapa en sencillo, conectada con su teoría.
-2. **Estructura del código** — qué módulos y archivos aparecen (o cambian).
-3. **Funciones que vas a necesitar** — *qué hace, qué recibe y qué retorna*, con ejemplo mínimo y de uso **real**.
-4. **Testers** — cómo verificar con `pytest` y con comandos reales.
-5. **Checklist de esta parte**.
-6. **Tiempo estimado**.
+1. **Contexto de apertura** — qué problema resuelve la etapa y cómo enlaza con su teoría y con la etapa anterior.
+2. **Qué vas a construir** — la etapa en sencillo, y **por qué** se hace así.
+3. **Dónde vive cada cosa** — tabla *símbolo → ubicación → por qué ahí*, para no perderse.
+4. **Las piezas que necesitas** — firmas con docstring (el **cuerpo lo escribes tú**) seguidas de **la lógica detrás de cada una**. Solo se muestra código completo cuando *es* el entregable (config, cableado, declaración de campos).
+5. **Reglas que este paso debe respetar** — tabla *regla de la teoría → cómo se implementa*.
+6. **Caso de uso mínimo** y **Comprobación** — cómo se combinan las piezas y cómo se verifica (con `pytest` y/o comandos reales).
+7. **Qué NO cubre esta parte** — para no confundir etapas.
+8. **Checklist** y **Tiempo estimado**.
 
 ## Mapa de la guía
 
@@ -28,7 +30,7 @@ Todos siguen el mismo formato:
 | `05a_indice_estructura.md` | Índice invertido: estructura y construcción | `06` |
 | `05b_busqueda_lexica.md` | BM25 y búsqueda top-k | `06` |
 | `05c_persistencia_indice.md` | Guardar/cargar el índice y comando `index` | `06` |
-| `06a_retriever_lote.md` | `search_dataset` y `dataset_scope` | `01`, `06` |
+| `06a_retriever_lote.md` | `search_dataset` (búsqueda en lote) | `01`, `06` |
 | `06b_cli_busqueda.md` | CLI `search`/`search_dataset` y robustez | `01`, `06` |
 | `07_evaluacion.md` | Tu propio `evaluate`: IoU + recall@k | `07` |
 | `08a_contexto_prompt.md` | Releer contexto y construir el prompt | `00`, `08` |
@@ -65,7 +67,7 @@ rag42/
     ├── models.py          # modelos pydantic
     ├── tokenizer.py       # tokenizador de búsqueda
     ├── index.py           # índice invertido + BM25 + persistencia
-    ├── retriever.py       # búsqueda (single y batch)
+    ├── retriever.py       # búsqueda en lote (search_dataset)
     ├── evaluator.py       # IoU + recall@k
     ├── generator.py       # contexto, prompt y generación con Qwen
     └── io_utils.py        # helpers de JSON
