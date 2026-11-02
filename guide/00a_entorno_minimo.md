@@ -237,13 +237,130 @@ Qué debe pasar: `uv sync` crea `.venv/` y `uv.lock`; `make lint` termina **en v
 
 ---
 
-## 7. Checklist
+## 7. Preguntas de repaso — Entorno mínimo
+
+### Preguntas
+
+#### 1. ¿Por qué el layout de carpetas es un contrato y no una simple convención?
+
+#### 2. ¿Qué reglas de calidad hereda todo archivo de `src/` y con qué herramientas se verifican?
+
+#### 3. ¿Para qué sirve cada uno de los archivos de configuración del proyecto?
+
+#### 4. ¿Por qué `data/` no se versiona pero `uv.lock` sí?
+
+#### 5. ¿Por qué el `Makefile` usa `UV ?= uv run` y por qué esa variable se usa también en la regla `lint`?
+
+#### 6. ¿Qué diferencia hay entre `make lint` y `make lint-strict`?
+
+#### 7. ¿Por qué el prefijo de `file_path` debe ser exactamente `data/raw/vllm-0.10.1/`?
+
+#### 8. ¿Por qué las carpetas de salida no se crean a mano y quién debe crearlas?
+
+#### 9. ¿Qué función cumple `src/__init__.py` y qué ocurre si falta?
+
+---
+
+## Respuestas
+
+<details>
+<summary><strong>Respuesta 1 — El layout como contrato</strong></summary>
+
+Durante la defensa, el pipeline se ejecuta con scripts de referencia que leen de `data/raw/`, escriben en `data/processed/` y `data/output/...`, y buscan los datasets en `data/datasets/...`.
+
+Si las rutas no coinciden con ese layout, los scripts no arrancan y los checks correspondientes se consideran fallidos por diseño. Por eso la estructura de carpetas es un contrato evaluable, no una sugerencia.
+
+</details>
+
+<details>
+<summary><strong>Respuesta 2 — Reglas heredadas por todo `src/`</strong></summary>
+
+Todo archivo de `src/` (y del bonus) debe cumplir:
+
+- **Python 3.10 o posterior.**
+- **Estilo `flake8`.**
+- **Excepciones controladas:** `try/except` para que ningún camino reviente y `with` para liberar recursos.
+- **Type hints** en parámetros, retornos y variables, con `mypy` sin errores usando los flags de la regla `lint`.
+- **Docstrings PEP 257** (estilo Google o NumPy) en funciones y clases.
+
+Se verifican con `flake8` y `mypy` (a través del `Makefile`), y la versión de Python se fija en `pyproject.toml`.
+
+</details>
+
+<details>
+<summary><strong>Respuesta 3 — Archivos de configuración</strong></summary>
+
+- **`.flake8`**: configuración de `flake8` (longitud máxima de línea, avisos ignorados y carpetas excluidas).
+- **`.gitignore`**: indica qué no debe versionarse (bytecode, entorno virtual, cachés y `data/`).
+- **`Makefile`**: interfaz de ejecución con las reglas `install`, `run`, `debug`, `clean`, `lint` y `lint-strict`.
+- **`pyproject.toml`**: versión de Python, dependencias, grupo `dev` y configuración de `pytest` y `mypy`.
+- **`src/__init__.py`**: convierte `src/` en un paquete Python.
+
+</details>
+
+<details>
+<summary><strong>Respuesta 4 — `data/` frente a `uv.lock`</strong></summary>
+
+`data/` contiene datos generados o provistos: corpus, índice, datasets y salidas. El subject prohíbe subir datos grandes, pesos del modelo y salidas generadas, y el evaluador genera esos datos durante la evaluación. Por eso todo el directorio se ignora.
+
+`uv.lock` es distinto: fija las versiones exactas de las dependencias y **sí** se commitea, porque permite al evaluador reproducir el mismo entorno con `uv sync`.
+
+</details>
+
+<details>
+<summary><strong>Respuesta 5 — La variable `UV` del `Makefile`</strong></summary>
+
+`UV ?= uv run` define la herramienta con la que se ejecutan las demás, y el `?=` permite sobrescribirla.
+
+Se usa también en `lint` porque `flake8` y `mypy` viven dentro del entorno del proyecto (grupo `dev`), no en el sistema. Ejecutar `flake8 .` directamente produce `command not found`; `uv run flake8 .` lo lanza dentro del entorno virtual correcto.
+
+</details>
+
+<details>
+<summary><strong>Respuesta 6 — `lint` y `lint-strict`</strong></summary>
+
+`make lint` ejecuta `flake8` y `mypy` con los flags exactos que exige el subject: `--warn-return-any`, `--warn-unused-ignores`, `--ignore-missing-imports`, `--disallow-untyped-defs` y `--check-untyped-defs`.
+
+`make lint-strict` ejecuta la misma pareja, pero con `mypy --strict`. Es una opción recomendada por el subject para endurecer las comprobaciones, no la regla mínima obligatoria.
+
+</details>
+
+<details>
+<summary><strong>Respuesta 7 — El prefijo exacto de `file_path`</strong></summary>
+
+El grader compara `file_path` **verbatim**, carácter a carácter. Por eso la ruta guardada debe empezar exactamente por `data/raw/vllm-0.10.1/`, y no por variantes como `proyect/...`, `./data/...` o una ruta absoluta.
+
+Un prefijo distinto hace que el grader no reconozca el archivo, aunque el contenido sea correcto.
+
+</details>
+
+<details>
+<summary><strong>Respuesta 8 — Creación de las carpetas de salida</strong></summary>
+
+Las carpetas de salida no se crean a mano porque `data/` no se versiona y pueden no existir todavía. Cada comando que las necesita debe crearlas con `mkdir(parents=True, exist_ok=True)`.
+
+La única carpeta que prepara la persona que sigue la guía es `data/raw/`, para colocar el corpus. Tampoco hacen falta `.gitkeep`, porque no hay nada que versionar dentro de `data/`.
+
+</details>
+
+<details>
+<summary><strong>Respuesta 9 — `src/__init__.py`</strong></summary>
+
+Un directorio se convierte en paquete Python cuando contiene `__init__.py`. Sin ese archivo, `uv run python -m src` no encuentra `src` como paquete y la invocación falla.
+
+En esta etapa basta con que contenga el docstring del paquete.
+
+</details>
+
+---
+
+## 8. Checklist
 
 - [ ] Carpetas `src/` y `data/` creadas (solo `src/__init__.py` es obligatorio de momento).
 - [ ] `.flake8`, `.gitignore`, `Makefile`, `pyproject.toml`, `src/__init__.py` existen.
 - [ ] `uv sync` funciona desde la raíz.
 - [ ] `uv run make lint` pasa en verde.
 
-## 8. Tiempo estimado
+## 9. Tiempo estimado
 
 **≈ 10–15 minutos.**

@@ -181,6 +181,7 @@ def _covered(chunks: list[Chunk], length: int) -> bool:
     return all(chunks[i].end == chunks[i + 1].start for i in range(len(chunks) - 1))
 # chunks contiguos ⇒ sin huecos y sin solapes "accidentales"
 ```
+---
 
 ## 7. Qué NO cubre esta parte
 
@@ -188,12 +189,123 @@ def _covered(chunks: list[Chunk], length: int) -> bool:
 - **Construir el índice** → `05a`; aquí solo se producen las piezas.
 - **Ajustar el solape** para subir recall → es una palanca del bucle de mejora (`07`).
 
-## 8. Checklist
+---
+
+## 8. Preguntas de repaso — chunking.py
+
+### Preguntas
+
+#### 1. ¿Qué información guarda un objeto `Chunk`?
+
+#### 2. ¿Qué devuelve `line_start_offsets(text)` y para qué sirve?
+
+#### 3. ¿Cómo funciona `python_segments(text)` y qué tipos de definiciones identifica?
+
+#### 4. ¿Cómo funciona `markdown_segments(text)`? ¿Qué ocurre si el documento no tiene encabezados?
+
+#### 5. ¿Qué hace `split_large(text, start, end, max_chunk_size)` cuando un segmento supera el tamaño máximo?
+
+#### 6. ¿Cuál es la responsabilidad de `pack_segments()` y qué función cumple el parámetro `overlap`?
+
+#### 7. ¿Qué hace `chunk_file()` y por qué se considera la función principal del módulo?
+
+---
+
+## Respuestas
+
+<details>
+<summary><strong>Respuesta 1 — Clase Chunk</strong></summary>
+
+Un objeto `Chunk` guarda la ruta del archivo y los límites del fragmento dentro del texto:
+
+- `file_path`: ruta del archivo de origen.
+- `start`: índice donde comienza el fragmento.
+- `end`: índice donde termina el fragmento.
+- `length`: longitud del fragmento.
+
+No necesita guardar una copia del contenido, ya que los índices permiten localizarlo en el texto original.
+
+</details>
+
+<details>
+<summary><strong>Respuesta 2 — line_start_offsets()</strong></summary>
+
+Devuelve una lista con la posición (índice de carácter) donde comienza cada línea del texto.
+
+Estos offsets permiten convertir un número de línea, como los que proporciona el AST de Python, en una posición dentro de la cadena original.
+
+</details>
+
+<details>
+<summary><strong>Respuesta 3 — python_segments()</strong></summary>
+
+Analiza el código con `ast.parse()` y divide el texto en segmentos siguiendo las definiciones principales de Python:
+
+- Funciones (`FunctionDef`).
+- Funciones asíncronas (`AsyncFunctionDef`).
+- Clases (`ClassDef`).
+
+También conserva el texto que queda entre esas definiciones.
+
+Si encuentra decoradores, empieza el segmento en la línea del primer decorador para incluirlos. Si el código tiene un `SyntaxError`, devuelve un único segmento que abarca todo el texto.
+
+</details>
+
+<details>
+<summary><strong>Respuesta 4 — markdown_segments()</strong></summary>
+
+Busca encabezados Markdown de nivel 1 a 6. Cada segmento comienza en un encabezado y termina justo antes del siguiente.
+
+Si hay texto antes del primer encabezado, también lo conserva como segmento.
+
+Si no encuentra encabezados, devuelve un único segmento con todo el texto, siempre que no esté vacío.
+
+</details>
+
+<details>
+<summary><strong>Respuesta 5 — split_large()</strong></summary>
+
+Divide un segmento que supera el tamaño máximo en fragmentos más pequeños.
+
+Intenta cortar en un separador de párrafos (`\n\n`) antes de alcanzar el límite. Si no encuentra uno, corta directamente en el límite calculado.
+
+De esta manera, evita superar el tamaño máximo y mantiene cubierto el segmento original.
+
+</details>
+
+<details>
+<summary><strong>Respuesta 6 — pack_segments()</strong></summary>
+
+Agrupa segmentos vecinos para formar chunks sin superar `max_chunk_size`.
+
+- Si un segmento cabe en el chunk actual, intenta añadirlo.
+- Si no cabe, cierra el chunk actual y comienza otro.
+- Si un segmento individual supera el tamaño máximo, lo divide mediante `split_large()`.
+
+El parámetro `overlap` permite que parte del contenido de un chunk se repita al comienzo del siguiente.
+
+</details>
+
+<details>
+<summary><strong>Respuesta 7 — chunk_file()</strong></summary>
+
+Coordina el proceso completo para un archivo:
+
+1. Comprueba la extensión del archivo.
+2. Si termina en `.py`, utiliza `python_segments()`; en caso contrario, utiliza `markdown_segments()`.
+3. Pasa los segmentos a `pack_segments()` junto con el tamaño máximo y el solapamiento.
+4. Convierte cada rango `(start, end)` obtenido en un objeto `Chunk`.
+
+Es la función principal porque conecta las demás piezas y devuelve la lista final de chunks.
+
+</details>
+
+## 9. Checklist
 
 - [ ] `src/chunking.py` con `Chunk` y las seis funciones.
 - [ ] Cobertura total y techo de tamaño verificados sobre el corpus real.
 - [ ] `uv run pytest` y `uv run make lint` en verde.
 
-## 9. Tiempo estimado
+## 10. Tiempo estimado
 
 **≈ 1 h.**

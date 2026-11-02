@@ -123,7 +123,121 @@ Qué debe pasar, y **por qué** cada uno:
 
 ---
 
-## 6. Checklist
+## 6. Preguntas de repaso — CLI mínimo
+
+### Preguntas
+
+#### 1. ¿Qué hace `python -m src` y por qué ejecuta `__main__.py` en lugar de otro archivo?
+
+#### 2. ¿Por qué no se debe invocar el programa con `python src/cli.py`?
+
+#### 3. ¿Por qué la CLI se construye con Fire y cómo convierte una función en un subcomando?
+
+#### 4. ¿Por qué se usa un mapa explícito `fire.Fire({...})` en lugar de `fire.Fire(cli)`?
+
+#### 5. ¿Cómo se reparten las responsabilidades entre `src/__main__.py` y `src/cli.py`?
+
+#### 6. ¿Qué representa la firma `index(max_chunk_size: int = 2000) -> None` y por qué el valor por defecto es 2000?
+
+#### 7. ¿Qué se espera del cuerpo de `index` en esta etapa y por qué no se implementa todavía?
+
+#### 8. ¿Qué demuestra cada uno de los tres comandos de comprobación?
+
+#### 9. ¿Para qué sirve el guard `if __name__ == "__main__":`?
+
+---
+
+## Respuestas
+
+<details>
+<summary><strong>Respuesta 1 — `python -m src`</strong></summary>
+
+`python -m src` le dice a Python que trate `src` como un módulo ejecutable. Cuando `src` es un paquete, Python ejecuta su archivo llamado exactamente `__main__.py`.
+
+Ese nombre no es una convención propia: es el nombre fijo que Python busca para `-m <paquete>`. Por eso el fichero se llama `__main__.py` y no `main.py`.
+
+</details>
+
+<details>
+<summary><strong>Respuesta 2 — Por qué no `python src/cli.py`</strong></summary>
+
+Ejecutar un archivo dentro del paquete rompe la identidad del paquete: los imports `from src...` dejan de resolver igual y `sys.path` cambia.
+
+El subject fija `uv run python -m src <command> [options]`, así que esa es la forma que debe respetarse.
+
+</details>
+
+<details>
+<summary><strong>Respuesta 3 — Fire y los subcomandos</strong></summary>
+
+El subject exige construir la CLI con **Fire**, que evita escribir `argparse` a mano. Fire recibe una función y la convierte en un subcomando: el nombre de la función pasa a ser el nombre del comando, y cada parámetro pasa a ser una opción con `--`.
+
+Los type hints hacen la conversión de tipos. Por ejemplo, como `max_chunk_size` es `int`, Fire convierte el texto `"2000"` de la línea de comandos en el número `2000`.
+
+</details>
+
+<details>
+<summary><strong>Respuesta 4 — Mapa explícito frente a `fire.Fire(cli)`</strong></summary>
+
+El mapa explícito tiene dos ventajas:
+
+- **Catálogo público controlado:** solo se expone lo que aparece en el diccionario. Con `fire.Fire(cli)` se expondría por accidente cualquier función pública del módulo, incluidas las auxiliares.
+- **Comparación con el subject:** los comandos requeridos quedan visibles de un vistazo en una sola línea del `__main__.py`, y el mapa crece una línea por etapa.
+
+</details>
+
+<details>
+<summary><strong>Respuesta 5 — `__main__.py` frente a `cli.py`</strong></summary>
+
+`src/__main__.py` es puro cableado: conecta la línea de comandos con las funciones de `cli.py` mediante el mapa de Fire. No debe contener lógica de negocio.
+
+`src/cli.py` es la capa de comandos: traduce los argumentos de la CLI en llamadas al resto de `src/` y devuelve o avisa del resultado. La lógica de indexar vivirá en `index.py`; `cli.py` solo la orquesta.
+
+</details>
+
+<details>
+<summary><strong>Respuesta 6 — La firma de `index`</strong></summary>
+
+La firma `index(max_chunk_size: int = 2000) -> None` significa:
+
+- Es el comando público `index`.
+- Recibe `max_chunk_size` como entero, con valor por defecto `2000`.
+- No retorna nada (`None`); su efecto es escribir el índice y reportar por consola.
+
+El default es `2000` porque el subject fija ese valor y prohíbe superarlo: el moulinette rechaza fuentes de más de 2000 caracteres.
+
+</details>
+
+<details>
+<summary><strong>Respuesta 7 — El cuerpo provisional de `index`</strong></summary>
+
+En esta etapa el cuerpo es un marcador de posición que solo imprime lo recibido. Sirve para comprobar que el comando llega y que Fire pasa bien el parámetro.
+
+No se implementa todavía porque la lógica real de indexar (leer, cortar, indexar y persistir) llega en `05c`. Lo único que se verifica ahora es el *plumbing* de la invocación. La firma, que es el contrato visible para Fire y el evaluador, no cambiará.
+
+</details>
+
+<details>
+<summary><strong>Respuesta 8 — Los tres comandos de comprobación</strong></summary>
+
+- `uv run python -m src --help` → Fire lista exactamente un comando, `index`. Demuestra que el mapa y el import funcionan.
+- `uv run python -m src index --help` → Fire muestra `--max_chunk_size` con su default `2000`. Demuestra que leyó la firma y el type hint.
+- `uv run python -m src index --max_chunk_size 2000` → imprime la confirmación y no lanza `Traceback`. Demuestra que el camino `python -m src` → `__main__.py` → mapa → `cli.index` está conectado de extremo a extremo.
+
+</details>
+
+<details>
+<summary><strong>Respuesta 9 — El guard `__main__`</strong></summary>
+
+Cuando se ejecuta `python -m src`, el archivo `__main__.py` se ejecuta como `__main__`, así que la condición es verdadera y Fire despacha el comando.
+
+El guard evita que ese despacho se dispare si alguien importa el módulo por error en otro contexto.
+
+</details>
+
+---
+
+## 7. Checklist
 
 - [ ] `src/__main__.py` con el mapa explícito de comandos (solo `index` por ahora).
 - [ ] `src/cli.py` con la firma `index(max_chunk_size: int = 2000) -> None` y su docstring.
@@ -131,6 +245,6 @@ Qué debe pasar, y **por qué** cada uno:
 - [ ] `uv run python -m src index --max_chunk_size 2000` no lanza `Traceback`.
 - [ ] `uv run make lint` sigue en verde.
 
-## 7. Tiempo estimado
+## 8. Tiempo estimado
 
 **≈ 5–10 minutos.**

@@ -159,12 +159,158 @@ assert not out.startswith("./") and "\\" not in out
 
 ---
 
-## 8. Checklist
+## 8. Preguntas de repaso — Corpus y offsets
+
+### Preguntas
+
+#### 1. ¿Por qué leer y nombrar el corpus desde un único módulo (`src/corpus.py`)?
+
+#### 2. ¿Qué dos fallos aparecen si cada módulo lee los archivos o construye las rutas a su manera?
+
+#### 3. ¿Qué devuelve `project_root()` y por qué se calcula desde `__file__` en vez del directorio actual?
+
+#### 4. ¿Por qué `read_text()` lee bytes y decodifica UTF-8, en lugar de abrir el archivo en modo texto?
+
+#### 5. ¿Qué ocurre si un archivo contiene bytes que no son UTF-8 válido?
+
+#### 6. ¿Qué tres pasos convierten una ruta real en ruta de corpus canónica y qué evita cada uno?
+
+#### 7. ¿Qué hace `resolve_corpus_path()` y en qué momento se necesita?
+
+#### 8. ¿Qué convención usa `extract_span()` y qué ventajas tiene el rango `[start, end)`?
+
+#### 9. ¿Por qué `iter_corpus_files()` ordena los archivos y devuelve un `Iterator` en vez de una lista?
+
+#### 10. ¿Qué extensiones recorre el corpus por defecto y por qué se incluye `.txt`?
+
+#### 11. ¿Qué demuestran los cinco tests de `tests/test_corpus.py`?
+
+---
+
+## Respuestas
+
+<details>
+<summary><strong>Respuesta 1 — Un único punto de entrada</strong></summary>
+
+Todas las funciones de lectura y de construcción de rutas viven en `src/corpus.py`, y el resto del sistema pasa siempre por ese módulo.
+
+Así se garantiza que exista una sola "forma de leer" y una sola "forma de nombrar" un archivo. Si el rango calculado al indexar y el texto extraído después usan criterios distintos, los offsets se desplazan; si las rutas se construyen de varias maneras, el comparador ve archivos distintos donde hay uno solo.
+
+`corpus.py` es la capa más baja del proyecto y no depende de nada del dominio.
+
+</details>
+
+<details>
+<summary><strong>Respuesta 2 — Los dos fallos que evita el módulo único</strong></summary>
+
+- **Lecturas inconsistentes:** si un módulo usa `open()`, otro `read_text()` de `pathlib` y otro no fija la codificación, un rango calculado al indexar no coincide con el texto extraído al mostrar, y los offsets se desplazan.
+- **Rutas inconsistentes:** si cada módulo construye la ruta a mano (`"./" + ...`, `str(path)`, rutas absolutas), aparecen variantes que apuntan al mismo archivo pero que el comparador trata como archivos diferentes.
+
+</details>
+
+<details>
+<summary><strong>Respuesta 3 — `project_root()`</strong></summary>
+
+Devuelve la raíz del repositorio, es decir, el directorio que contiene `src/`.
+
+Se calcula subiendo desde la ubicación del propio archivo: `Path(__file__).resolve().parents[1]`, porque `corpus.py` está en `src/`, así que `parents[0]` es `src/` y `parents[1]` es la raíz.
+
+No se usa el directorio actual porque el evaluador lanza los comandos desde la raíz, pero se puede probar desde otro sitio; resolver la raíz a partir del archivo hace que funcione igual en ambos casos. Además, el subject exige rutas relativas a la raíz del proyecto.
+
+</details>
+
+<details>
+<summary><strong>Respuesta 4 — `read_text()`: bytes y UTF-8</strong></summary>
+
+`read_text()` lee el archivo como **bytes** y luego lo decodifica explícitamente como UTF-8.
+
+Leer bytes en vez de usar el modo texto evita la traducción automática de `\r\n` a `\n`, que acortaría el texto y desplazaría todos los offsets. Decodificar como UTF-8 fija la codificación en vez de dejarla al azar del sistema.
+
+</details>
+
+<details>
+<summary><strong>Respuesta 5 — Bytes inválidos</strong></summary>
+
+Si `decode` lanza un `UnicodeError` porque algún byte no es UTF-8 válido, se reintenta con `errors="replace"`.
+
+El objetivo es que un archivo con un byte raro no tumbe el indexado: se sustituyen los bytes problemáticos y el pipeline continúa, cumpliendo la regla de excepciones controladas.
+
+</details>
+
+<details>
+<summary><strong>Respuesta 6 — Ruta de corpus canónica</strong></summary>
+
+Los tres pasos son:
+
+1. `resolve()`: elimina `./`, `..` y resuelve enlaces simbólicos.
+2. `relative_to(root)`: deja la ruta relativa a la raíz, sin prefijo absoluto.
+3. `as_posix()`: usa siempre `/`, nunca `\`.
+
+El resultado debe ser literalmente `data/raw/vllm-0.10.1/docs/features/lora.md`, porque el grader compara `file_path` verbatim.
+
+</details>
+
+<details>
+<summary><strong>Respuesta 7 — `resolve_corpus_path()`</strong></summary>
+
+Es la operación inversa de `to_corpus_path()`: une la raíz con una ruta de corpus guardada (`root / corpus_path`) para obtener la ruta real en disco.
+
+Se necesita cuando solo se tiene el `file_path` almacenado, sin el texto, y hay que volver a abrir el archivo; por ejemplo, al reconstruir el contexto de una fuente guardada.
+
+</details>
+
+<details>
+<summary><strong>Respuesta 8 — La convención `[start, end)`</strong></summary>
+
+`extract_span()` devuelve `text[start:end]`, con `start` incluido y `end` excluido.
+
+Ventajas de esa convención:
+
+- `end - start` es exactamente el número de caracteres del fragmento.
+- Un rango vacío es expresable con `start == end`.
+- Coincide con el slicing nativo de Python.
+
+Además, concentrar el recorte en una sola función evita repetir el slicing por todo el proyecto y mantiene la convención en un único lugar.
+
+</details>
+
+<details>
+<summary><strong>Respuesta 9 — Orden y tipo de retorno de `iter_corpus_files()`</strong></summary>
+
+Recorre el árbol con `rglob("*")`, se queda con los archivos cuya extensión está en `extensions` y los entrega con `sorted(...)`.
+
+**Ordenar** garantiza que el mismo corpus produzca siempre el mismo índice, sin depender del orden del sistema de archivos (reproducibilidad). **Devolver un `Iterator`** permite consumir las rutas a medida que se indexa, sin cargarlas todas en memoria.
+
+</details>
+
+<details>
+<summary><strong>Respuesta 10 — Extensiones del corpus</strong></summary>
+
+Por defecto se recorren `.py`, `.md` y `.txt`.
+
+Se incluye `.txt` porque el corpus contiene ficheros de texto relevantes que no son ni código Python ni Markdown, como `CMakeLists.txt`.
+
+</details>
+
+<details>
+<summary><strong>Respuesta 11 — Los cinco tests de corpus</strong></summary>
+
+- `test_extract_matches_reference_span`: recuperar `[4695, 6098)` de `docs/features/lora.md` empieza por `### Using API Endpoints` y mide `6098 - 4695`. Prueba la convención de extremo a extremo.
+- `test_offsets_are_characters_not_bytes`: con `"ábc"`, `len == 3` y `extract_span(text, 0, 3) == "ábc"`. Demuestra que se cuentan caracteres, no bytes.
+- `test_corpus_path_is_posix_and_relative`: la ruta devuelta es la exacta, sin `./` y sin `\`.
+- `test_reading_is_stable`: leer dos veces el mismo archivo devuelve el mismo texto, sin traducciones no deterministas.
+- `test_iter_is_sorted`: `iter_corpus_files` produce rutas ordenadas, lo que hace reproducible el índice.
+
+</details>
+
+---
+
+## 9. Checklist
 
 - [ ] `src/corpus.py` con las seis funciones y sus docstrings.
 - [ ] Los cinco tests pasan (`uv run pytest`).
 - [ ] `uv run make lint` pasa en verde.
 
-## 9. Tiempo estimado
+## 10. Tiempo estimado
 
 **≈ 30 minutos.**
