@@ -417,4 +417,4 @@ La moulinette / evaluador automático espera encontrar en los JSON una estructur
 
 ## 10. Tiempo estimado
 
-**≈ 30 minutos.**
+**≈ 2:30 horas.**

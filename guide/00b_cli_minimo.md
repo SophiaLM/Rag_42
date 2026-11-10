@@ -10,6 +10,43 @@ uv run python -m src <command> [options]
 
 De esa lista de comandos (`index`, `search`, `search_dataset`, `answer`, `answer_dataset`, `evaluate`) aquí montamos **solo `index`**, y **solo como esqueleto**: la lógica de indexar no existe todavía (llega en `05c`). La misión de esta etapa no es indexar nada, es **demostrar que el camino de invocación funciona de extremo a extremo** antes de que haya algo que pueda romperse.
 
+### Mapa de comandos
+
+Los seis comandos forman una cadena: se construye el índice una vez y, a partir de él, se busca, se responde y se mide.
+
+```text
+corpus ─index─► índice ─search_dataset─► resultados.json ─answer_dataset─► respuestas.json
+                  │                            │
+                  ├─ search (1 pregunta)       └─ evaluate (mide el recall)
+                  └─ answer (1 pregunta)
+```
+
+| Comando | Para qué sirve | Entrada → salida | Etapa |
+|---|---|---|---|
+| `index` | Construir el índice del corpus (se hace **una vez**) | `data/raw/` → `data/processed/` | `05c` |
+| `search` | Probar **una** pregunta a mano | pregunta + índice → imprime las `k` mejores fuentes | `05b`/`06b` |
+| `search_dataset` | Buscar **todo un dataset** | JSON de preguntas + índice → JSON de resultados | `06a`/`06b` |
+| `answer` | Responder **una** pregunta a mano | pregunta + índice → imprime la respuesta | `08c` |
+| `answer_dataset` | Responder **todo un dataset** | JSON de resultados → JSON con respuestas | `08c` |
+| `evaluate` | Medir tu búsqueda (recall) | JSON de resultados + respuestas correctas → imprime el recall | `07` |
+
+**Cómo se conectan:**
+
+- **`index` va primero.** `search`, `search_dataset` y `answer` consultan el índice; `answer_dataset` y `evaluate` no, porque trabajan sobre un JSON de resultados ya guardado.
+- **Cada comando es un programa aparte.** Los de dataset se pasan los datos **por archivo**: lo que `search_dataset` escribe en `--save_directory` es lo que `answer_dataset` y `evaluate` leen con `--student_search_results_path`.
+- **`search` y `answer` son para probar y depurar a mano.** El evaluador automático usa `index` y `search_dataset` (y después mide con la moulinette).
+
+**Cómo se usaría cada uno** (`PREGUNTAS.json` es el dataset de entrada; el resultado de la búsqueda conserva ese mismo nombre de fichero):
+
+```bash
+uv run python -m src index --max_chunk_size 2000
+uv run python -m src search "How to configure the OpenAI server?" --k 5
+uv run python -m src search_dataset --dataset_path PREGUNTAS.json --k 10 --save_directory BUSQUEDA
+uv run python -m src answer "How to configure the OpenAI server?" --k 5
+uv run python -m src answer_dataset --student_search_results_path BUSQUEDA/PREGUNTAS.json --save_directory RESPUESTAS
+uv run python -m src evaluate --student_search_results_path BUSQUEDA/PREGUNTAS.json --dataset_path CORRECTAS.json
+```
+
 ---
 
 ## 1. Cómo se invoca un paquete en Python
