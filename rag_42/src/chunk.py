@@ -202,7 +202,7 @@ def pack_segments(
     """
     chunks = []
     current_start = None
-    current_end = None
+    current_end = 0  # solo se lee si current_start no es None
 
     for start, end in segments:
         segment_size = end - start
@@ -211,7 +211,7 @@ def pack_segments(
             if current_start is not None:
                 chunks.append((current_start, current_end))
                 current_start = None
-                current_end = None
+                current_end = 0
 
             chunks.extend(split_large(text, start, end, max_chunk_size))
             continue
