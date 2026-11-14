@@ -73,6 +73,16 @@ def remove_stopwords(terms: list[str],
     """Palanca: devuelve `terms` sin las palabras vacías."""
 ```
 
+### La librería `re`, en corto
+
+`re` es la librería **estándar** de Python para trabajar con **expresiones regulares**: patrones que describen "qué trozos de texto quiero encontrar o por dónde quiero cortar". Aquí no hay que instalar nada (`import re` basta) y se usa porque tokenizar es exactamente eso: **encontrar** palabras y **partir** identificadores por unas fronteras concretas.
+
+- `re.compile(patrón)` compila el patrón **una vez** y devuelve un objeto reutilizable. Por eso `_WORD` y `_CAMEL` viven a nivel de módulo: no se recompilan en cada llamada.
+- `_WORD.findall(texto)` devuelve **todas** las coincidencias del patrón (aquí, todas las "palabras").
+- `_CAMEL.split(token)` **parte** el texto justo en las fronteras que marca el patrón.
+
+Los patrones se escriben con `r"..."` (*raw string*) para que las barras invertidas (`\`) lleguen literalmente a `re` y no las interprete Python antes. No hace falta memorizar sintaxis: lo importante es entender que `_WORD` dice *"letras, dígitos y `_`"* y `_CAMEL` dice *"frontera entre minúscula y mayúscula, o entre mayúscula y mayúscula+minúscula"*. Si un patrón se vuelve difícil de leer, se comenta encima; el objetivo es que quien lo lea sepa **qué recorta**, no que sepa regex de memoria.
+
 ### La lógica detrás de cada una
 
 **`_WORD`** (`[A-Za-z0-9_]+`) — el colador base: encuentra "palabras" formadas por letras, dígitos y guion bajo. Todo lo demás (signos de puntuación, espacios) separa. Nada de `á`/`ñ`: el corpus y las preguntas son en inglés; si algún día hiciera falta, sería una palanca más.
@@ -141,19 +151,88 @@ El test que fija la regla de oro es `test_same_terms_for_equal_text`: si el chun
 
 ---
 
-## 7. Qué NO cubre esta parte
+## 7. Preguntas de repaso — tokenizer.py
+
+### Preguntas
+
+#### 1. ¿Por qué hay dos funciones de entrada (`tokenize` y `tokenize_source`) en lugar de una sola?
+
+#### 2. ¿Qué hace `split_identifier("max_model_len")` y por qué `tokenize` conserva también el identificador completo?
+
+#### 3. ¿Qué papel juegan `_WORD` y `_CAMEL`, y por qué se compilan a nivel de módulo y no dentro de cada función?
+
+#### 4. ¿Por qué `tokenize_source` quita `data/` y `raw/` antes de tokenizar la ruta? ¿Qué aporta la ruta al índice?
+
+#### 5. ¿Por qué `remove_stopwords` existe pero no se aplica por defecto? ¿Qué test fija la regla de oro y qué síntoma verías si se rompiera?
+
+---
+
+## Respuestas
+
+<details>
+<summary><strong>Respuesta 1 — Dos entradas, un solo colador</strong></summary>
+
+Porque los dos lados no reciben la misma información:
+
+- La **pregunta** solo tiene texto → `tokenize(text)`.
+- El **chunk** tiene texto **y** una ruta → `tokenize_source(text, file_path)`.
+
+La segunda añade los términos de la ruta y luego llama a la primera. Así el chunk se enriquece, pero **ambas acaban en el mismo `tokenize`**, que es lo que garantiza que la regla de oro no se rompa.
+
+</details>
+
+<details>
+<summary><strong>Respuesta 2 — Identificador completo y partes</strong></summary>
+
+`split_identifier("max_model_len")` devuelve `["max", "model", "len"]`: primero parte por `_` y después aplica `_CAMEL` a cada trozo.
+
+`tokenize` guarda **las dos cosas**: el identificador completo (`max_model_len`) y sus partes (`max`, `model`, `len`). El completo cubre una consulta que **cita** el identificador; las partes cubren una consulta que lo **parafrasea** ("model length"). Si solo guardaras una de las dos, perderías uno de los dos tipos de coincidencia.
+
+</details>
+
+<details>
+<summary><strong>Respuesta 3 — `_WORD`, `_CAMEL` y `re.compile`</strong></summary>
+
+- `_WORD` (`[A-Za-z0-9_]+`) encuentra las "palabras": secuencias de letras, dígitos y `_`. Todo lo demás (espacios, comas, paréntesis) actúa como separador.
+- `_CAMEL` detecta las **fronteras** de `CamelCase` (`aB` y `ABCd`) para poder partir el identificador por ahí.
+
+Se compilan **una sola vez**, al importar el módulo, porque `re.compile` prepara el patrón y devuelve un objeto reutilizable. Si se compilaran dentro de `tokenize`, se repetiría ese trabajo en cada llamada, y `tokenize` se ejecuta una vez por chunk y una vez por pregunta.
+
+</details>
+
+<details>
+<summary><strong>Respuesta 4 — Ruta enriquecida sin prefijos comunes</strong></summary>
+
+Se quitan `data/` y `raw/` porque aparecen en **todos** los archivos del corpus: no distinguen un chunk de otro y solo añadirían ruido.
+
+El resto de la ruta sí aporta. Por ejemplo, `data/raw/vllm-0.10.1/docs/features/lora.md` añade `vllm`, `docs`, `features` y `lora`. Eso importa porque muchas preguntas hablan del **tema** (`lora`, `features`) y el nombre del archivo o de la carpeta puede no aparecer dentro del texto del chunk.
+
+</details>
+
+<details>
+<summary><strong>Respuesta 5 — Stopwords opcionales y la regla de oro</strong></summary>
+
+`remove_stopwords` es una **palanca**, no parte del pipeline por defecto: en un corpus de código, quitar términos puede borrar señal discriminante. Se deja disponible para probarla en el bucle de mejora (`07`), cambiando una cosa cada vez.
+
+El test que fija la regla de oro es `test_same_terms_for_equal_text`: comprueba que `Server`/`server` y `KV_Cache`/`kv_cache` producen los mismos términos. Si se rompiera, el índice guardaría una forma y la pregunta buscaría otra; el síntoma sería "no encuentro nada" aunque el texto correcto esté en el corpus.
+
+</details>
+
+---
+
+## 8. Qué NO cubre esta parte
 
 - **Ordenar y puntuar** los chunks (BM25) → `05b`.
 - **Stemming y n-gramas** (teoría `05`, opcionales) → son palancas del bucle de mejora (`07`), no del tokenizador mínimo.
 - **Aplicar stopwords por defecto** → aquí solo se deja la herramienta; probarla es decisión tuya.
 
-## 8. Checklist
+## 9. Checklist
 
 - [ ] `src/tokenizer.py` con `tokenize`, `split_identifier` y `tokenize_source`.
 - [ ] El identificador completo **y** sus partes se indexan.
 - [ ] Mismo tokenizador usado en chunks y preguntas.
 - [ ] `uv run pytest` y `uv run make lint` en verde.
 
-## 9. Tiempo estimado
+## 10. Tiempo estimado
 
-**≈ 30 minutos.**
+**≈ 2:30–3 horas** para alguien que está aprendiendo. La mayor parte se va en entender `re`, probar los casos de identificadores y dejar los tests en verde, no en escribir líneas de código.
