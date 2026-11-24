@@ -235,4 +235,4 @@ El test que fija la regla de oro es `test_same_terms_for_equal_text`: comprueba 
 
 ## 10. Tiempo estimado
 
-**≈ 2:30–3 horas** para alguien que está aprendiendo. La mayor parte se va en entender `re`, probar los casos de identificadores y dejar los tests en verde, no en escribir líneas de código.
+**≈ 2:30–3 horas** 
