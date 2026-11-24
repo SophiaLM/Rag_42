@@ -2,14 +2,6 @@
 
 Esta carpeta contiene **solo la teoría** necesaria para construir un sistema de recuperación (RAG) sobre un corpus de código. No explica el subject ni su interfaz, no monta el proyecto y no cubre tareas de entrega (README, defensa, bonus). La idea es que llegues a la parte práctica entendiendo los conceptos, sin memorizar conceptos que no usarás.
 
-## Lo que se da por sabido (y por eso no se repite)
-
-Estos temas ya se manejan en cualquier proyecto y **no** se explican aquí:
-
-- Python: `with` / context managers, manejo de excepciones con criterio, type hints, docstrings.
-- Herramientas de proyecto: `uv`, linters (`flake8`, `mypy`), `Makefile`, `git` y `.gitignore`.
-- Los *tokens del LLM* como unidad de texto (sí se verá, distinguiéndose, la tokenización **de búsqueda**).
-
 ## Cómo está ordenada
 
 El orden importa: **ningún concepto se usa antes de explicarse**. Si un archivo menciona algo "de antes", es porque se definió en un archivo anterior.
